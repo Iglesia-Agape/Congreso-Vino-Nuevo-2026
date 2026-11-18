@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Event Selfie Booth</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: #000;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        #video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); /* Efecto espejo para guía natural */
+            z-index: 1;
+        }
+        #ui-layer {
+            position: relative;
+            z-index: 2;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            padding: 40px 20px;
+            pointer-events: none;
+        }
+        .header-text {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            backdrop-filter: blur(5px);
+        }
+        #countdown {
+            font-size: 9rem;
+            font-weight: 800;
+            text-shadow: 0 4px 20px rgba(0,0,0,0.8);
+            display: none;
+        }
+        #capture-btn {
+            pointer-events: auto;
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 6px solid rgba(255, 255, 255, 0.4);
+            cursor: pointer;
+            transition: transform 0.15s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        #capture-btn:active { transform: scale(0.9); }
+        #flash {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #fff;
+            opacity: 0;
+            z-index: 10;
+            pointer-events: none;
+            transition: opacity 0.3s ease-out;
+        }
+        #status {
+            position: absolute;
+            bottom: 150px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px 18px;
+            border-radius: 20px;
+            font-size: 0.95rem;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        canvas { display: none; }
+    </style>
+</head>
+<body>
+
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
+    <div id="flash"></div>
+
+    <div id="ui-layer">
+        <div class="header-text">TOCA EL BOTÓN PARA TU FOTO</div>
+        <div id="countdown">3</div>
+        <div id="status">Guardando foto...</div>
+        <button id="capture-btn" aria-label="Tomar foto"></button>
+    </div>
+
+    <script>
+        // PEGA AQUÍ LA URL DE TU GOOGLE APPS SCRIPT
+        const SCRIPT_URL = "PEGA_AQUI_TU_URL_DEL_SCRIPT";
+
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const btn = document.getElementById('capture-btn');
+        const countdownEl = document.getElementById('countdown');
+        const flashEl = document.getElementById('flash');
+        const statusEl = document.getElementById('status');
+
+        // Iniciar cámara frontal del iPhone
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "user", width: { ideal: 1920 }, height: { ideal: 1080 } },
+                    audio: false
+                });
+                video.srcObject = stream;
+            } catch (err) {
+                alert("Error al acceder a la cámara: " + err.message);
+            }
+        }
+
+        function showStatus(msg, duration = 3000) {
+            statusEl.textContent = msg;
+            statusEl.style.opacity = 1;
+            setTimeout(() => { statusEl.style.opacity = 0; }, duration);
+        }
+
+        btn.addEventListener('click', () => {
+            btn.style.display = 'none';
+            let count = 3;
+            countdownEl.textContent = count;
+            countdownEl.style.display = 'block';
+
+            const timer = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    countdownEl.textContent = count;
+                } else {
+                    clearInterval(timer);
+                    countdownEl.style.display = 'none';
+                    takePhoto();
+                }
+            }, 1000);
+        });
+
+        function takePhoto() {
+            // Efecto Flash
+            flashEl.style.opacity = 1;
+            setTimeout(() => { flashEl.style.opacity = 0; }, 150);
+
+            // Configurar canvas al tamaño real del video
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+
+            // Invertir horizontalmente en el canvas para que la foto guardada coincida con el espejo
+            ctx.translate(canvas.width, 0);
+            ctx.scale(-1, 1);
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Convertir a JPEG (calidad 0.85 para subida rápida sin perder nitidez)
+            const imageData = canvas.toDataURL('image/jpeg', 0.85);
+            
+            btn.style.display = 'block';
+            uploadPhoto(imageData);
+        }
+
+        async function uploadPhoto(base64Image) {
+            showStatus("Guardando en la nube...", 4000);
+            try {
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ image: base64Image })
+                });
+                const result = await response.json();
+                if (result.status === "success") {
+                    showStatus("¡Foto guardada con éxito!", 2500);
+                } else {
+                    showStatus("Error al guardar", 3000);
+                    console.error(result.message);
+                }
+            } catch (error) {
+                showStatus("Error de conexión", 3000);
+                console.error(error);
+            }
+        }
+
+        startCamera();
+    </script>
+</body>
+</html>
