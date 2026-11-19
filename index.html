@@ -87,14 +87,32 @@
             border-radius: 30px;
             cursor: pointer;
             box-shadow: 0 4px 15px rgba(255,255,255,0.3);
+            pointer-events: auto;
         }
 
+        .header-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            pointer-events: auto;
+        }
         .header-text {
-            background: rgba(0, 0, 0, 0.5);
+            background: rgba(0, 0, 0, 0.6);
             padding: 10px 20px;
             border-radius: 30px;
             font-size: 1.1rem;
             font-weight: 600;
+            backdrop-filter: blur(5px);
+        }
+        #change-group-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.4);
+            padding: 6px 16px;
+            font-size: 0.85rem;
+            border-radius: 20px;
+            cursor: pointer;
             backdrop-filter: blur(5px);
         }
         #countdown {
@@ -120,18 +138,6 @@
             cursor: pointer;
             box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
-        #restart-btn {
-            display: none;
-            background: rgba(0, 0, 0, 0.7);
-            color: #fff;
-            border: 2px solid rgba(255, 255, 255, 0.5);
-            padding: 12px 28px;
-            font-size: 1rem;
-            font-weight: 600;
-            border-radius: 25px;
-            cursor: pointer;
-            backdrop-filter: blur(5px);
-        }
         #flash {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -143,7 +149,7 @@
         }
         #status {
             position: absolute;
-            bottom: 140px;
+            bottom: 130px;
             background: rgba(0, 0, 0, 0.8);
             padding: 10px 20px;
             border-radius: 20px;
@@ -159,9 +165,9 @@
     <!-- Pantalla Inicial para ingresar nombres -->
     <div id="name-screen">
         <h2>¡Bienvenidos! 📸</h2>
-        <p>Escriban sus nombres para organizar su foto</p>
-        <input type="text" id="name-input" placeholder="Ej. María y Juana" autocomplete="off" />
-        <button class="primary-btn" id="start-booth-btn">Continuar</button>
+        <p>Escriban sus nombres para comenzar</p>
+        <input type="text" id="name-input" placeholder="Ej. Maria-y-Juana" autocomplete="off" />
+        <button class="primary-btn" id="start-booth-btn">Listo, empezar</button>
     </div>
 
     <video id="video" autoplay playsinline></video>
@@ -169,24 +175,26 @@
     <div id="flash"></div>
 
     <div id="ui-layer">
-        <div class="header-text" id="greeting-display">LISTOS</div>
+        <div class="header-container">
+            <div class="header-text" id="greeting-display">LISTOS</div>
+            <button id="change-group-btn">👥 Cambiar de grupo</button>
+        </div>
+
         <div id="countdown">3</div>
         <div id="status">Guardando foto...</div>
         
         <div class="bottom-controls">
             <button id="capture-btn" aria-label="Tomar foto"></button>
-            <button id="restart-btn">🔄 Siguiente grupo</button>
         </div>
     </div>
 
     <script>
-        // PEGA AQUÍ LA URL DE TU GOOGLE APPS SCRIPT
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwkSs8IslL35kgt_ujQbs9TTOqEWbCV8Sb9SelDIayAGvF4h-xls0SDine8PsokpXVtMg/exec";
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwkSs8IslL35kgt_ujQbs9TTOqEWbCV8Sb9SelDIayAGvF4h-xls0SDine8PsokpXVtMg/exec"; // Recuerda poner tu URL aquí
 
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
         const btn = document.getElementById('capture-btn');
-        const restartBtn = document.getElementById('restart-btn');
+        const changeGroupBtn = document.getElementById('change-group-btn');
         const countdownEl = document.getElementById('countdown');
         const flashEl = document.getElementById('flash');
         const statusEl = document.getElementById('status');
@@ -197,7 +205,6 @@
 
         let visitorNames = "Invitados";
 
-        // Iniciar cámara frontal
         async function startCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
@@ -210,19 +217,17 @@
             }
         }
 
-        // Al hacer clic en continuar tras poner nombres
         startBoothBtn.addEventListener('click', () => {
             const val = nameInput.value.trim();
             if (val !== "") {
-                visitorNames = val;
+                visitorNames = val.replace(/\s+/g, "-"); // Reemplaza espacios por guiones automáticamente
             } else {
-                visitorNames = "Foto_Evento";
+                visitorNames = "Foto-Evento";
             }
-            greetingDisplay.textContent = `¡Hola, ${visitorNames}!`;
+            greetingDisplay.textContent = `✨ Hola, ${visitorNames.replace(/-/g, ' ')}`;
             nameScreen.style.display = 'none';
         });
 
-        // Permitir presionar "Enter" para continuar
         nameInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') startBoothBtn.click();
         });
@@ -233,7 +238,7 @@
             setTimeout(() => { statusEl.style.opacity = 0; }, duration);
         }
 
-        // Botón de captura y cuenta regresiva
+        // Cuenta regresiva y disparo
         btn.addEventListener('click', () => {
             btn.style.display = 'none';
             let count = 3;
@@ -269,7 +274,7 @@
         }
 
         async function uploadPhoto(base64Image) {
-            showStatus("Guardando foto en la nube...", 5000);
+            showStatus("Guardando foto...", 4000);
             try {
                 const response = await fetch(SCRIPT_URL, {
                     method: 'POST',
@@ -280,8 +285,9 @@
                 });
                 const result = await response.json();
                 if (result.status === "success") {
-                    showStatus("¡Foto guardada con éxito!", 3000);
-                    restartBtn.style.display = 'block'; // Mostrar botón de siguiente grupo
+                    showStatus("¡Foto guardada con éxito! 📸", 2500);
+                    // Volver a mostrar el botón de captura inmediatamente para que se puedan tomar otra foto
+                    btn.style.display = 'block';
                 } else {
                     showStatus("Error al guardar", 3000);
                     btn.style.display = 'block';
@@ -292,11 +298,9 @@
             }
         }
 
-        // Botón de Reiniciar para el siguiente grupo
-        restartBtn.addEventListener('click', () => {
+        // Botón para cambiar de grupo cuando llegan personas nuevas
+        changeGroupBtn.addEventListener('click', () => {
             nameInput.value = "";
-            restartBtn.style.display = 'none';
-            btn.style.display = 'block';
             nameScreen.style.display = 'flex';
             nameInput.focus();
         });
